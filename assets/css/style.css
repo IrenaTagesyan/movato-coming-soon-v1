@@ -1,0 +1,559 @@
+/* ==========================================================================
+   Movato — coming soon
+
+   One teal block at the top — a header band carrying the wordmark's own colour,
+   then the clip — meeting a deep-teal page that holds the sign-up. The page is
+   teal-family rather than near-black so the two halves read as one surface
+   shading down, with a clean edge between them and no gradient.
+
+   Everything is sized to fit one viewport without scrolling, in all three
+   languages; see the vertical budget note above .page.
+
+   The clip's Armenian caption is burned into its pixels, so a patch of the
+   clip's own teal covers it and the caption is re-rendered as HTML in the
+   selected language. See README.
+   ========================================================================== */
+
+:root {
+  /* The video's teal as decoded. Browsers colour-manage video inconsistently —
+     with GPU compositing Chrome paints rgb(0,158,174), without it rgb(1,147,162)
+     — so this is only the fallback shown before the clip decodes. Anything that
+     has to match the video is painted from the clip itself (.fill). */
+  --video-bg: #019eae;
+
+  /* The form side. Not teal — this is a deliberate contrast against the clip
+     rather than a continuation of it, so the two halves read as brand and
+     action rather than one surface shading down. */
+  --bg: #1E2945;
+
+  --ink: #f2f8f9;
+  --ink-soft: rgba(242, 248, 249, 0.72);
+  --ink-faint: rgba(242, 248, 249, 0.5);
+  --line: rgba(242, 248, 249, 0.18);
+  --surface: rgba(242, 248, 249, 0.06);
+
+  /* Caption band, as a share of the video height. The burned-in caption spans
+     61.8%–71.8%; the patch runs 58.5%–77%, so its solid core (61%–74%) clears
+     the text while the feathered edges stay clear of the wordmark, which ends
+     at 57.3%. */
+  --band-top: 58.5%;
+  --band-height: 18.5%;
+
+  /* Caption typography, matched to the original render (≈45px at 1080p). The
+     floor keeps it readable on phones, where a strictly proportional caption
+     would land under 10px. */
+  --caption-top: 61.4%;
+  --caption-size: max(4.2cqh, 12px);
+
+  /* Banner crop. Measured off the render, sampled across the whole clip: every
+     non-teal pixel in every frame falls between 40.0% and 71.9% of the frame
+     height, and the top edge never moves. The window is 37%–79.5%, leaving
+     ~3 points of margin above the wordmark and ~7.6 below the caption;
+     everything outside it is flat teal carrying nothing.
+
+     The room underneath is not decoration — on a narrow screen the caption
+     stops scaling with the frame and sits on its 12px floor, so it needs more
+     of the frame there than it does on a desktop.
+
+     The bottom edge stays at 79.5% — that is what the caption needs on a narrow
+     screen. Only the top moved, which lifts the wordmark within the banner.
+
+     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.425 = 3.825. */
+  --crop-top: 0.37;
+  --crop-keep: 0.425;
+
+  --pad: clamp(1.25rem, 5vw, 2.5rem);
+  --measure: calc(1040px + 2 * var(--pad));
+
+  /* Geologica covers latin, latin-ext, Cyrillic, Greek and Vietnamese — but not
+     Armenian (U+0530-058F). Noto Sans Armenian sits behind it to catch those
+     glyphs; because Google serves each face with a unicode-range, the browser
+     picks per character, so Latin and Cyrillic get Geologica and Armenian gets
+     Noto without anything having to switch fonts by language. */
+  --font-ui: 'Geologica', 'Noto Sans Armenian', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', system-ui, sans-serif;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+/* html needs a definite height, not min-height: a percentage min-height on body
+   resolves against its parent's *computed* height, and if that is auto the
+   percentage is ignored — body then never stretches to the viewport, .page has
+   nothing to fill, and centring it does nothing. */
+html { height: 100%; }
+body { min-height: 100%; }
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ------------------------------------------------------------------ hero -- */
+
+.hero {
+  position: relative;
+  flex: none;
+  background: var(--video-bg);
+}
+
+/* Painted from the clip, not from --video-bg: a CSS teal matches the decoded
+   video on one rendering path and shows as a visible band on another, so the
+   header band would have a seam across it exactly where the clip starts. */
+.hero__ground {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Every fill shows the same patch of frame: x 40%–60%, y 90%–96%, which is flat
+   teal in every frame and well clear of the edges, where upscaling would
+   otherwise pull in a bilinear ramp. The percentages are relative to whatever
+   box the fill sits in, so the same rule serves boxes of any size. */
+.fill {
+  position: absolute;
+  left: -200%;
+  top: -1500%;
+  width: 500%;
+  height: 1666.667%;
+  object-fit: fill;
+  pointer-events: none;
+}
+
+/* Three columns rather than a centred flex row: the title is centred by the
+   grid, so it can never grow into the switcher — it wraps or shrinks first.
+   Centring by justify-content would let the two overlap on a narrow screen. */
+.hero__bar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  /* Full width rather than the content measure: inset to --pad the switcher
+     sat 200px in from the edge of a wide screen and read as floating. */
+  padding: clamp(0.7rem, 1.8vh, 1.1rem) clamp(0.75rem, 2.2vw, 1.5rem)
+    clamp(0.4rem, 1.1vh, 0.7rem);
+  padding-top: max(clamp(0.7rem, 1.8vh, 1.1rem), env(safe-area-inset-top));
+}
+
+.hero__title {
+  grid-column: 2;
+  margin: 0;
+  font-size: clamp(0.95rem, 2.6vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.2em;
+  /* letter-spacing trails the last glyph, which nudges centred text left */
+  text-indent: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.switcher {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.lang {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0.34rem 0.7rem;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.66);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  transition: color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+
+.lang:hover { color: #ffffff; }
+
+/* Translucent, so the clip reads through the selected pill instead of the pill
+   sitting on top of it as a solid chip. The label is a deeper teal than the
+   solid version used: against a pill that blends to rgb(217,240,243) rather
+   than pure white, #017a87 falls to 4.29:1 — under AA for text this size —
+   while #01606c holds 6.1:1. */
+.lang[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.85);
+  color: #01606c;
+}
+
+/* -------------------------------------------------------------- showcase -- */
+
+/* Full width, with the height following from the crop: 16 wide by (9 × 0.45)
+   tall — a ≈4.2:1 strip. Deriving it with aspect-ratio rather than a `vw` calc
+   keeps it honest when a scrollbar is present: `100vw` includes the scrollbar,
+   so a vw-sized banner overhangs and adds a horizontal scrollbar of its own. */
+.showcase {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 16 / 3.825;
+  overflow: hidden;
+}
+
+/* The video's full 16:9 rect, kept whole and pulled up so the window lands on
+   37%–79.5% of it. Keeping the true rect is what lets the mask and the
+   caption stay in frame percentages — cropping the video element itself would
+   have rebased every one of those measured numbers.
+
+   The offset is a transform, not `top`: a percentage in `top` resolves against
+   the container's height, a percentage in translateY resolves against the
+   element's own — which is the one the 37% is measured in. */
+.frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  transform: translateY(calc(var(--crop-top) * -100%));
+  /* Enables the cqh units the caption is sized in. */
+  container-type: size;
+  container-name: frame;
+}
+
+.frame__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Source is exactly 16:9, so `fill` maps percentages 1:1 with no distortion. */
+  object-fit: fill;
+  background: var(--video-bg);
+}
+
+.frame__mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--band-top);
+  height: var(--band-height);
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--video-bg);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 13.5%, #000 83.8%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 13.5%, #000 83.8%, transparent 100%);
+}
+
+/* --------------------------------------------------------------- caption -- */
+
+.caption {
+  position: absolute;
+  top: var(--caption-top);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 92%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12em;
+  text-align: center;
+  font-size: var(--caption-size);
+  line-height: 1.18;
+  color: #ffffff;
+  pointer-events: none;
+}
+
+/* The lead line is fixed copy: it is painted once and never animates, so it
+   cannot flicker at a cue boundary or at the loop point. */
+.caption__lead {
+  display: block;
+  max-width: 100%;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+/* The accent line is the only animated part. */
+.caption__part {
+  display: block;
+  max-width: 100%;
+  font-weight: 400;
+  text-wrap: balance;
+  opacity: 0;
+  transform: translateY(0.35em);
+  transition: opacity 0.32s var(--ease), transform 0.32s var(--ease);
+}
+
+.caption__part.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ------------------------------------------------------------------ page -- */
+
+/* Vertical budget: the hero band, the banner and this block have to add up to
+   less than one viewport in every language — Armenian and Russian labels run
+   longer than the English ones, and Russian wraps the lede to an extra line.
+   The padding is vh-based so it gives way first on a short screen, and
+   .is-compact (below) trims the form itself when that is not enough. */
+.page {
+  position: relative;
+  z-index: 1;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Centred in whatever height is left over. Top-aligned, a tall phone left
+     ~300px of dead teal under the button; centring costs nothing on a short
+     screen, where the padding has already collapsed and there is no slack. */
+  justify-content: center;
+  gap: clamp(0.9rem, 2.4vh, 1.5rem);
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3.5vh, 2.25rem) var(--pad) clamp(1.25rem, 3vh, 2rem);
+  padding-bottom: max(clamp(1.25rem, 3vh, 2rem), env(safe-area-inset-bottom));
+}
+
+/* Title and subtitle travel together, closer to each other than either is to
+   the form, so they read as one block rather than three stacked lines. */
+.form-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Smaller, lighter and quieter than the title above it. */
+.subtitle {
+  margin: 0;
+  max-width: 26em;
+  font-size: clamp(0.85rem, 1.05vw, 1rem);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* The form's title. Full-strength ink and a heavier weight than the labels
+   under it, so it reads as the instruction for the form rather than as a
+   caption trailing off the banner. */
+.lede {
+  margin: 0;
+  /* Measured in em, not rem: the font size is a clamp() that scales with the
+     viewport, so a measure in rem drifts away from it and the line count breaks
+     at whatever width the two happen to cross. In em the ratio is fixed at
+     every size, and all three languages set as two lines throughout.
+
+     The multiplier is derived from the copy — see the v2 README. Re-check it if
+     the wording changes substantially. */
+  max-width: 18em;
+  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* ---------------------------------------------------------------- signup -- */
+
+.signup {
+  width: 100%;
+  max-width: 30rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.field__label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding-left: 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+
+.field__input {
+  width: 100%;
+  min-width: 0;
+  appearance: none;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease);
+}
+
+.field__input::placeholder { color: rgba(242, 248, 249, 0.38); }
+
+.field__input:hover { border-color: rgba(242, 248, 249, 0.3); }
+
+.field__input:focus {
+  outline: none;
+  border-color: rgba(242, 248, 249, 0.6);
+  background: rgba(242, 248, 249, 0.1);
+}
+
+/* The field a failed submit points at. Cleared as soon as it is edited. */
+.field__input.is-invalid { border-color: #ffb3ab; }
+
+/* Autofill paints its own near-white background, which would punch a slab
+   through the field. An inset shadow the depth of the field repaints it. */
+.field__input:-webkit-autofill,
+.field__input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: inset 0 0 0 100px #2a3454;
+  caret-color: var(--ink);
+}
+
+/* The brand blue. No drop shadow under it — the halo was the "lighting" that
+   had to go; the colour alone carries the call to action. */
+.signup__btn {
+  margin-top: 0.35rem;
+  padding: 0.95rem 1.4rem;
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #2ec7d6, #019eae);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease), opacity 0.18s var(--ease);
+}
+
+.signup__btn:hover:not(:disabled) { transform: translateY(-1px); }
+.signup__btn:active:not(:disabled) { transform: translateY(0); }
+
+.signup__btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Holds its own line height so the layout doesn't jump when a message appears
+   and shifts the button out from under the pointer mid-submit. */
+.signup__msg {
+  min-height: 1.4em;
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+
+.signup__msg:not(:empty) { opacity: 1; }
+.signup__msg.is-ok { color: var(--ink); font-weight: 600; }
+.signup__msg.is-error { color: #ffb3ab; }
+
+/* Once accepted, the confirmation replaces the field rather than sitting under
+   a form inviting a second submit. */
+.signup.is-done .field,
+.signup.is-done .signup__btn { display: none; }
+
+.signup.is-done .signup__msg { font-size: 1rem; }
+
+/* --------------------------------------------------------------- utility -- */
+
+.u-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------ responsive -- */
+
+/* The title and the switcher share one row, so on a narrow screen the switcher
+   has to give up width or the title has nowhere to go. */
+@media (max-width: 520px) {
+  .switcher { gap: 0.1rem; padding: 0.15rem; }
+  .lang { padding: 0.3rem 0.5rem; font-size: 0.6rem; letter-spacing: 0.04em; }
+  .hero__title { letter-spacing: 0.14em; text-indent: 0.14em; }
+}
+
+/* Short viewports. The threshold is 900px, not a phone-sized number: a 1366x768
+   or 1280x800 laptop is exactly where this bites, because the banner scales with
+   *width* while the form does not — a wide-but-short window gives the banner the
+   most room and the form the least. Measured, those two scrolled by 81px and
+   32px in Armenian before this rule existed.
+
+   The form is the only thing here with slack, so it gives first: tighter fields,
+   smaller labels, less air between rows. */
+@media (max-height: 900px) {
+  .page { gap: 0.7rem; }
+  .signup { gap: 0.6rem; }
+  .field { gap: 0.25rem; }
+  .field__label { font-size: 0.64rem; letter-spacing: 0.08em; }
+  .field__input { padding: 0.68rem 0.85rem; font-size: 0.9rem; }
+  .signup__btn { margin-top: 0.15rem; padding: 0.78rem 1.2rem; }
+  .signup__msg { font-size: 0.8rem; }
+  .lede { font-size: clamp(1rem, 1.9vw, 1.25rem); line-height: 1.3; }
+}
+
+/* The banner is deliberately never width-capped: it reads as the whole point of
+   the page, and a capped one looked shrunken next to the full-width version.
+   Its height scales with its width, so on a wide-but-short window (1280x620 was
+   the measured worst case) the banner is tall enough that the form no longer
+   fits — the page scrolls there rather than shrinking the banner to avoid it.
+   An earlier revision capped .showcase to 820px on (max-height: 700px); it was
+   removed on purpose, so re-adding it undoes an explicit design decision. */
+
+/* Fallback for engines without container query units: size the caption from the
+   viewport, which tracks the frame closely at every common screen shape. */
+@supports not (font-size: 1cqh) {
+  .caption { font-size: clamp(12px, 2vw, 1.35rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caption__part { transition-duration: 0.01ms; }
+  .signup__btn:hover:not(:disabled) { transform: none; }
+}
+
+:where(button, input):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}

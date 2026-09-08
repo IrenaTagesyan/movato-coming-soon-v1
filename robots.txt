@@ -1,0 +1,3 @@
+# Pre-launch teaser: reachable by link, but keep it out of search results.
+User-agent: *
+Disallow: /
