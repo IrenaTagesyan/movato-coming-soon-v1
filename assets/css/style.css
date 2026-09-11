@@ -56,14 +56,20 @@
      They are renders of the same piece, so the band still holds — but it is
      inherited, not measured on them. Re-check it if a clip is re-exported.
 
-     Sized so the banner clearly leads the page's two blocks at common window
-     shapes — 1.30x the form at 1440x900, 1.53x at 1920x1080, 1.36x at
-     1280x800. Past roughly 0.56 the form stops fitting a laptop screen at all,
-     so this is close to the ceiling.
+     Sized so the banner leads the page's two blocks while the whole page still
+     fits one screen without scrolling. 0.53 overflowed a 1600x845 viewport —
+     a 2000px window at 125% browser zoom — by about 12px; 0.48 leaves ~33px
+     spare there and ~136px on the same window at 100%.
 
-     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.53 = 4.77. */
+     One value, no max-height steps. Sizing the banner off viewport height made
+     the page render differently depending on zoom, because Chrome keeps zoom
+     per origin: a zoomed-out tab reported a taller viewport than one at 100%
+     and got a different banner. Rendering the same everywhere is worth more
+     than reclaiming the last few points of height on short windows.
+
+     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.48 = 4.32. */
   --crop-top: 0.27;
-  --crop-keep: 0.53;
+  --crop-keep: 0.48;
 
   --pad: clamp(1.25rem, 5vw, 2.5rem);
   /* Content column. Widened from 1040px to make room for the larger title:
@@ -224,7 +230,7 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
-  aspect-ratio: 16 / 4.77; /* 9 × --crop-keep */
+  aspect-ratio: 16 / 4.32; /* 9 × --crop-keep */
   overflow: hidden;
 }
 
