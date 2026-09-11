@@ -71,10 +71,19 @@
      caption on a narrow screen, where it stops scaling with the frame and sits
      on its 12px floor. The whole window then moved up 10 points.
 
-     Sized so the banner is the taller of the page's two blocks: 1.30x the
-     sign-up block at 1440x900, 1.53x at 1920x1080. It was the smaller one at
-     0.89x and 1.00x. Banner height follows width while the form does not, so
-     past roughly 0.56 the form stops fitting a laptop screen at all.
+     Sized so the banner leads the page's two blocks while the whole page
+     still fits one screen. Banner height follows the window's *width* while
+     the form's does not, so a wide-but-short window is where it overflows:
+     0.53 came to 857px against 845px of viewport on a 2000px window at 125%
+     browser zoom, which is the scrollbar. 0.53 fits because the form was
+     tightened to pay for it — the gaps and the field and button padding in the
+     max-height: 900px block below — leaving ~22px spare there. Going further
+     means taking height from the copy or the fields themselves.
+
+     One value, no max-height steps. Sizing the banner off viewport height
+     makes the page render at different sizes depending on browser zoom, since
+     Chrome keeps zoom per origin — the same page then looks different on
+     localhost and on the deployed URL.
 
      --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.53 = 4.77. */
   --crop-top: 0.27;
@@ -106,7 +115,11 @@
    percentage is ignored — body then never stretches to the viewport, .page has
    nothing to fill, and centring it does nothing. */
 html { height: 100%; }
-body { min-height: 100%; }
+/* A definite height, not min-height: the body is the flex container that
+   decides how the banner and the form share the screen, and flex can only
+   shrink a child against a container whose height is known. With min-height
+   the container just grew and the page scrolled. */
+body { height: 100%; }
 
 body {
   margin: 0;
@@ -122,9 +135,24 @@ body {
 
 /* ------------------------------------------------------------------ hero -- */
 
+/* The banner takes the height left over after the form, instead of a fixed
+   share of the window's width.
+
+   `0 1 auto` — never grows past --crop-keep, but shrinks when it has to. The
+   form is `1 0 auto` below, so it keeps its natural height and the banner
+   absorbs the whole deficit. That is the right way round: the form has a hard
+   minimum (label, field, button) while the banner is a crop that can simply
+   show less of itself.
+
+   This is what makes a scrollbar structurally impossible rather than something
+   to be tuned away — the two blocks are now sized against the viewport instead
+   of adding up and hoping. */
 .hero {
   position: relative;
-  flex: none;
+  flex: 0 1 auto;
+  min-height: 0; /* flex items refuse to shrink below content without this */
+  display: flex;
+  flex-direction: column;
   background: var(--video-bg);
 }
 
@@ -158,6 +186,7 @@ body {
 .hero__bar {
   position: relative;
   z-index: 2;
+  flex: none; /* the bar keeps its height; .showcase absorbs the shrink */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -234,7 +263,12 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
+  /* The preferred height. flex may shrink it below this on a short window; it
+     never grows past it. overflow: hidden then crops the frame rather than
+     letting the page scroll. */
   aspect-ratio: 16 / 4.77; /* 9 × --crop-keep */
+  flex: 0 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -350,8 +384,11 @@ body {
   width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
-  padding: clamp(1.25rem, 3.5vh, 2.25rem) var(--pad) clamp(1.25rem, 3vh, 2rem);
-  padding-bottom: max(clamp(1.25rem, 3vh, 2rem), env(safe-area-inset-bottom));
+  /* Trimmed so the page fits one screen. This padding reads as breathing room
+     rather than as structure, so it gives way before the copy or the fields
+     do — worth ~16px on a 845px viewport. */
+  padding: clamp(0.9rem, 2.4vh, 1.5rem) var(--pad) clamp(0.9rem, 2.2vh, 1.4rem);
+  padding-bottom: max(clamp(0.9rem, 2.2vh, 1.4rem), env(safe-area-inset-bottom));
 }
 
 /* Title and subtitle travel together, closer to each other than either is to
@@ -560,12 +597,14 @@ body {
    The form is the only thing here with slack, so it gives first: tighter fields,
    smaller labels, less air between rows. */
 @media (max-height: 900px) {
-  .page { gap: 0.95rem; } /* still the widest gap on the page, just tighter */
-  .signup { gap: 0.6rem; }
-  .field { gap: 0.25rem; }
+  .page { gap: 0.7rem; } /* still the widest gap on the page, just tighter */
+  .signup { gap: 0.45rem; }
+  .field { gap: 0.2rem; }
   .field__label { font-size: 0.64rem; letter-spacing: 0.08em; }
-  .field__input { padding: 0.68rem 0.85rem; font-size: 0.9rem; }
-  .signup__btn { margin-top: 0.15rem; padding: 0.78rem 1.2rem; }
+  /* Vertical padding only — the fields keep their horizontal padding, so they
+     read as the same control, just less tall. */
+  .field__input { padding: 0.58rem 0.85rem; font-size: 0.9rem; }
+  .signup__btn { margin-top: 0.15rem; padding: 0.68rem 1.2rem; }
   .signup__msg { font-size: 0.8rem; }
   .lede { font-size: clamp(1.12rem, 2.13vw, 1.4rem); line-height: 1.3; }
   .subtitle { font-size: clamp(0.9rem, 1.1vw, 1.05rem); }
