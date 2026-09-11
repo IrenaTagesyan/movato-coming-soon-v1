@@ -9,9 +9,8 @@
    Everything is sized to fit one viewport without scrolling, in all three
    languages; see the vertical budget note above .page.
 
-   The clip's Armenian caption is burned into its pixels, so a patch of the
-   clip's own teal covers it and the caption is re-rendered as HTML in the
-   selected language. See README.
+   Each clip carries its own words burned into its pixels, so the page draws
+   nothing over them; it only rotates which clip is playing.
    ========================================================================== */
 
 :root {
@@ -32,38 +31,46 @@
   --line: rgba(242, 248, 249, 0.18);
   --surface: rgba(242, 248, 249, 0.06);
 
-  /* Caption band, as a share of the video height. The burned-in caption spans
-     61.8%–71.8%; the patch runs 58.5%–77%, so its solid core (61%–74%) clears
-     the text while the feathered edges stay clear of the wordmark, which ends
-     at 57.3%. */
-  --band-top: 58.5%;
-  --band-height: 18.5%;
+  /* Banner crop: which slice of the 16:9 frame the banner shows. Its height is
+     width × 9 × --crop-keep / 16, so widening the slice is what makes the
+     banner taller — the clip is not scaled, more of it is revealed.
 
-  /* Caption typography, matched to the original render (≈45px at 1080p). The
-     floor keeps it readable on phones, where a strictly proportional caption
-     would land under 10px. */
-  --caption-top: 61.4%;
-  --caption-size: max(4.2cqh, 12px);
+     The window is 31.75%–84.75%. It was 37%–79.5%, sized around a render whose
+     content sat between 40.0% and 71.9% of frame height; it was widened by the
+     same amount top and bottom, keeping the centre at 58.25%, so anything that
+     fitted before still fits with margin to spare. That matters now that four
+     different renders share the window and their content bounds are not all
+     measured — growing symmetrically cannot crop one of them.
 
-  /* Banner crop. Measured off the render, sampled across the whole clip: every
-     non-teal pixel in every frame falls between 40.0% and 71.9% of the frame
-     height, and the top edge never moves. The window is 37%–79.5%, leaving
-     ~3 points of margin above the wordmark and ~7.6 below the caption;
-     everything outside it is flat teal carrying nothing.
+     Everything outside the content band is flat teal carrying nothing, so the
+     extra room reads as air around the wordmark rather than as empty space.
 
-     The room underneath is not decoration — on a narrow screen the caption
-     stops scaling with the frame and sits on its 12px floor, so it needs more
-     of the frame there than it does on a desktop.
+     The window sits well above the content rather than centred on it, which
+     seats the clip lower in the banner: 13 points of teal above the wordmark
+     against roughly 8 below. Centred, it left about 13 points of dead teal
+     underneath and only 8 above, and that bottom band read as a gap between
+     the clip and the form rather than as margin.
 
-     The bottom edge stays at 79.5% — that is what the caption needs on a narrow
-     screen. Only the top moved, which lifts the wordmark within the banner.
+     The 40.0%-71.9% content band was measured on the single render this page
+     used to ship, which has since been replaced by the four rotating clips.
+     They are renders of the same piece, so the band still holds — but it is
+     inherited, not measured on them. Re-check it if a clip is re-exported.
 
-     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.425 = 3.825. */
-  --crop-top: 0.37;
-  --crop-keep: 0.425;
+     Sized so the banner clearly leads the page's two blocks at common window
+     shapes — 1.30x the form at 1440x900, 1.53x at 1920x1080, 1.36x at
+     1280x800. Past roughly 0.56 the form stops fitting a laptop screen at all,
+     so this is close to the ceiling.
+
+     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.53 = 4.77. */
+  --crop-top: 0.27;
+  --crop-keep: 0.53;
 
   --pad: clamp(1.25rem, 5vw, 2.5rem);
-  --measure: calc(1040px + 2 * var(--pad));
+  /* Content column. Widened from 1040px to make room for the larger title:
+     the Armenian measure is the binding constraint, and at 38em it needs
+     1094px at the type's cap. Only the copy is affected — .signup caps itself
+     at 30rem, so the form and its button keep the width they had. */
+  --measure: calc(1180px + 2 * var(--pad));
 
   /* Geologica covers latin, latin-ext, Cyrillic, Greek and Vietnamese — but not
      Armenian (U+0530-058F). Noto Sans Armenian sits behind it to catch those
@@ -73,6 +80,11 @@
   --font-ui: 'Geologica', 'Noto Sans Armenian', -apple-system, BlinkMacSystemFont,
     'Segoe UI', system-ui, sans-serif;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* Crossfade between clips. It runs over the tail of the outgoing clip
+     rather than after it, so both are still moving throughout — long enough
+     to read as a dissolve, short enough not to eat the closing beat. */
+  --clip-fade: 900ms;
 }
 
 *,
@@ -212,7 +224,7 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
-  aspect-ratio: 16 / 3.825;
+  aspect-ratio: 16 / 4.77; /* 9 × --crop-keep */
   overflow: hidden;
 }
 
@@ -231,75 +243,41 @@ body {
   width: 100%;
   aspect-ratio: 16 / 9;
   transform: translateY(calc(var(--crop-top) * -100%));
-  /* Enables the cqh units the caption is sized in. */
-  container-type: size;
-  container-name: frame;
 }
 
+/* Two of these are stacked, and the banner crossfades between them: while one
+   plays, the next clip is decoding in the other. Both carry the teal as their
+   own background, so the pair never shows through to anything else mid-fade.
+
+   Only the outgoing element is faded; the incoming one is already opaque
+   underneath. Fading both at once would dip the middle of the transition
+   toward --video-bg, which is the one teal that does not match the clip. */
 .frame__video {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   /* Source is exactly 16:9, so `fill` maps percentages 1:1 with no distortion. */
   object-fit: fill;
   background: var(--video-bg);
-}
-
-.frame__mask {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: var(--band-top);
-  height: var(--band-height);
-  overflow: hidden;
-  pointer-events: none;
-  background: var(--video-bg);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 13.5%, #000 83.8%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 13.5%, #000 83.8%, transparent 100%);
-}
-
-/* --------------------------------------------------------------- caption -- */
-
-.caption {
-  position: absolute;
-  top: var(--caption-top);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 92%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.12em;
-  text-align: center;
-  font-size: var(--caption-size);
-  line-height: 1.18;
-  color: #ffffff;
-  pointer-events: none;
-}
-
-/* The lead line is fixed copy: it is painted once and never animates, so it
-   cannot flicker at a cue boundary or at the loop point. */
-.caption__lead {
-  display: block;
-  max-width: 100%;
-  font-weight: 400;
-  text-wrap: balance;
-}
-
-/* The accent line is the only animated part. */
-.caption__part {
-  display: block;
-  max-width: 100%;
-  font-weight: 400;
-  text-wrap: balance;
   opacity: 0;
-  transform: translateY(0.35em);
-  transition: opacity 0.32s var(--ease), transform 0.32s var(--ease);
 }
 
-.caption__part.is-visible {
+.frame__video.is-active {
   opacity: 1;
-  transform: translateY(0);
+  /* z-index, not source order: the two elements swap roles every rotation. */
+  z-index: 1;
+}
+
+/* `linear`, not --ease. Only the outgoing element animates, so what the eye
+   sees is a * out + (1 - a) * in — a constant rate of alpha is a constant rate
+   of dissolve. An ease-out curve dumps most of the change in the first third
+   and then crawls, which reads as a cut followed by a lingering ghost. */
+.frame__video.is-leaving {
+  opacity: 0;
+  z-index: 2;
+  transition: opacity var(--clip-fade) linear;
 }
 
 /* ------------------------------------------------------------------ page -- */
@@ -320,7 +298,11 @@ body {
      ~300px of dead teal under the button; centring costs nothing on a short
      screen, where the padding has already collapsed and there is no slack. */
   justify-content: center;
-  gap: clamp(0.9rem, 2.4vh, 1.5rem);
+  /* This gap is the one between the copy and the form — .page has exactly two
+     children, .form-head and .signup — so it is what separates the subtitle
+     from the email field. Wider than the gaps inside the form itself, so the
+     two read as separate things rather than one continuous stack. */
+  gap: clamp(1.1rem, 2.8vh, 1.9rem);
   width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
@@ -341,8 +323,10 @@ body {
 /* Smaller, lighter and quieter than the title above it. */
 .subtitle {
   margin: 0;
-  max-width: 26em;
-  font-size: clamp(0.85rem, 1.05vw, 1rem);
+  /* In em for the same reason as .lede's, and sized the same way: 24em-25em is
+     the only range that gives two lines in all three languages. */
+  max-width: 25em;
+  font-size: clamp(0.95rem, 1.18vw, 1.12rem);
   font-weight: 400;
   line-height: 1.45;
   color: var(--ink-soft);
@@ -358,12 +342,20 @@ body {
   /* Measured in em, not rem: the font size is a clamp() that scales with the
      viewport, so a measure in rem drifts away from it and the line count breaks
      at whatever width the two happen to cross. In em the ratio is fixed at
-     every size, and all three languages set as two lines throughout.
+     every size.
 
-     The multiplier is derived from the copy — see the v2 README. Re-check it if
-     the wording changes substantially. */
-  max-width: 18em;
-  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+     Sized so all three languages set as two lines, which Armenian did on its
+     own and the other two did not. The window is narrow: the cap has to sit
+     below the shortest natural line (Russian, ~24em) so it wraps at all, and
+     above half the longest (Armenian, ~40.5em) so Armenian does not go to
+     three. 21em-22em is the whole of that range.
+
+     The natural widths differ far more than the character counts suggest —
+     57 Armenian characters run ~40.5em against 51 English at ~26em — because
+     Geologica carries no Armenian and those glyphs fall through to Noto Sans
+     Armenian, a much wider face. */
+  max-width: 22em;
+  font-size: clamp(1.23rem, 2.46vw, 1.8rem);
   font-weight: 600;
   line-height: 1.35;
   color: var(--ink);
@@ -380,7 +372,6 @@ body {
   flex-direction: column;
   gap: 0.85rem;
 }
-
 
 .field {
   display: flex;
@@ -400,7 +391,6 @@ body {
   text-transform: uppercase;
   color: var(--ink-faint);
 }
-
 
 .field__input {
   width: 100%;
@@ -524,14 +514,15 @@ body {
    The form is the only thing here with slack, so it gives first: tighter fields,
    smaller labels, less air between rows. */
 @media (max-height: 900px) {
-  .page { gap: 0.7rem; }
+  .page { gap: 0.95rem; } /* still the widest gap on the page, just tighter */
   .signup { gap: 0.6rem; }
   .field { gap: 0.25rem; }
   .field__label { font-size: 0.64rem; letter-spacing: 0.08em; }
   .field__input { padding: 0.68rem 0.85rem; font-size: 0.9rem; }
   .signup__btn { margin-top: 0.15rem; padding: 0.78rem 1.2rem; }
   .signup__msg { font-size: 0.8rem; }
-  .lede { font-size: clamp(1rem, 1.9vw, 1.25rem); line-height: 1.3; }
+  .lede { font-size: clamp(1.12rem, 2.13vw, 1.4rem); line-height: 1.3; }
+  .subtitle { font-size: clamp(0.9rem, 1.1vw, 1.05rem); }
 }
 
 /* The banner is deliberately never width-capped: it reads as the whole point of
@@ -542,14 +533,11 @@ body {
    An earlier revision capped .showcase to 820px on (max-height: 700px); it was
    removed on purpose, so re-adding it undoes an explicit design decision. */
 
-/* Fallback for engines without container query units: size the caption from the
-   viewport, which tracks the frame closely at every common screen shape. */
-@supports not (font-size: 1cqh) {
-  .caption { font-size: clamp(12px, 2vw, 1.35rem); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .caption__part { transition-duration: 0.01ms; }
+  /* The crossfade is kept: it is an opacity dissolve with nothing moving, and
+     cutting hard between two animations is the more jarring of the two. It is
+     shortened so it reads as a transition without lingering. */
+  :root { --clip-fade: 200ms; }
   .signup__btn:hover:not(:disabled) { transform: none; }
 }
 

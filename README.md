@@ -145,29 +145,40 @@ silently does nothing.
 
 ### The crop
 
-Measured off the render rather than eyeballed: sampling every frame of the clip
-and looking for non-teal pixels, **all content falls between 40.0 % and 71.9 %
-of the frame height**, and the top edge does not move for the whole 9.53 s. The
-bottom edge moves only with the caption line.
+The banner shows a horizontal slice of the 16:9 frame, and its height is
+`width × 9 × --crop-keep / 16`. Widening the slice is therefore what makes the
+banner taller — the clip is never scaled, more of it is revealed.
 
-So the window is **37 %–79.5 %** — about 3 points of margin above the wordmark
-and 7.6 below the caption. Only the top has been tuned; the bottom edge is what
-the caption needs on a narrow screen and should not move. Everything outside it is flat teal carrying
-nothing. The extra room underneath is not decoration: on a narrow screen the
-caption stops scaling with the frame and sits on its 12 px floor, so it needs
-more of the frame there than it does on a desktop. At 320 px wide the caption
-ends 3 px clear of the banner's bottom edge, which is the tightest case.
+The window is **27 %–80 %**. It started at 37 %–79.5 %, sized around a single
+render whose content sat between 40.0 % and 71.9 % of the frame height. It was
+first widened by the same amount top and bottom, keeping the centre at 58.25 %,
+so anything that fitted before still fits — growing it symmetrically is the
+point, because four different renders now share this window and their content
+bounds have not all been measured, so a symmetric expansion cannot crop one of
+them. The whole window then moved up 10 points, which seats the clip lower in
+the banner: 13 points of teal above the wordmark against about 8 below.
+Centred, the leftover teal pooled underneath and read as a gap between the clip
+and the form rather than as margin. Everything outside the content band is flat
+teal carrying nothing.
+
+The slice is also sized so the banner clearly leads the page's two blocks at
+common window shapes — 1.30× the sign-up block at 1440×900, 1.53× at 1920×1080,
+1.36× at 1280×800. Past roughly `--crop-keep: 0.56` the form stops fitting a
+laptop screen at all, so this is close to the ceiling.
+Because banner height follows *width* while the form does not, a wide-but-short
+window is where this bites: there the form can run past the fold and the page
+scrolls. That is deliberate (see "Never cap the banner width" in the history) —
+a full-size banner everywhere was chosen over fitting one screen on short
+laptops.
 
 The crop is done by the banner, not by the video element, and the pull-up is a
 `translateY` rather than `top`: a percentage in `top` resolves against the
 *container's* height, while a percentage in `translateY` resolves against the
-element's own — which is the one the 37 % is measured in. Both details exist
-for the same reason: the mask and the caption are positioned in percentages *of
-the frame*, so anything that resized or rebased the frame would invalidate every
-measured number in the table at the end of this file.
+element's own — which is the one `--crop-top` is measured in.
 
-There are no player controls: the clip autoplays muted and loops. If autoplay is
-refused, it starts on the first tap or keypress.
+There are no player controls: a clip autoplays muted and, when it ends, another
+is chosen at random and dissolved in. If autoplay is refused, it starts on the
+first tap or keypress.
 
 ## Sign-up capture
 
@@ -324,8 +335,8 @@ re-check them:
 | Accent line on screen | 0.5–2.38, 2.38–4.28, 4.28–6.02, 6.40–9.18 s | `ACCENT_TIMINGS` |
 | Flat patch used by the fills | x 40–60 %, y 90–96 % | `.fill` |
 | Content bounds (measured) | 40.0 %–71.9 % of frame height | — |
-| Banner crop window | 37 %–79.5 % of frame height | `--crop-top`, `--crop-keep` |
-| Banner aspect ratio | 16 / (9 × `--crop-keep`) = 16 / 3.825 | `.showcase` |
+| Banner crop window | 27 %–80 % of frame height | `--crop-top`, `--crop-keep` |
+| Banner aspect ratio | 16 / (9 × `--crop-keep`) = 16 / 4.77 | `.showcase` |
 
 If you can get a **clean render with no burned-in text**, drop `.frame__mask`
 from `index.html` — everything else keeps working unchanged.

@@ -12,9 +12,7 @@
 <meta property="og:title" content="Movato — Coming soon">
 <meta property="og:description" content="We’re bringing you new brands and a new culture.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="assets/video/poster.jpg">
 
-<link rel="preload" as="video" href="assets/video/preview.mp4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Geologica carries no Armenian subset, so Armenian glyphs fall through to
@@ -30,8 +28,7 @@
 <div class="hero">
 
   <div class="hero__ground" aria-hidden="true">
-    <video class="fill" data-src="assets/video/preview.mp4"
-           muted loop playsinline preload="none"
+    <video class="fill" muted loop playsinline preload="none"
            disablepictureinpicture tabindex="-1"></video>
   </div>
 
@@ -48,47 +45,33 @@
        that window is flat teal carrying nothing. -->
   <div class="showcase">
     <div class="frame" id="frame">
-      <video
-        class="frame__video"
-        id="video"
-        src="assets/video/preview.mp4"
-        poster="assets/video/poster.jpg"
-        muted
-        loop
-        autoplay
-        playsinline
-        preload="auto"
-        disablepictureinpicture
-        aria-label="Movato preview"></video>
+      <!-- Two elements, not one. The next clip is loaded into whichever is
+           idle while the other plays, so the swap is a crossfade between two
+           decoded videos rather than a blank frame waiting on a download.
+           main.js picks which clip each one gets; neither has a src here, so
+           only the chosen clip is ever fetched. No `loop` — the clip has to
+           end for `ended` to fire, and that is what rotates the banner. -->
+      <video class="frame__video is-active" id="videoA"
+             muted autoplay playsinline preload="auto"
+             disablepictureinpicture aria-label="Movato preview"></video>
+      <video class="frame__video" id="videoB"
+             muted playsinline preload="auto"
+             disablepictureinpicture aria-hidden="true" tabindex="-1"></video>
 
-      <!-- Hides the Armenian caption burned into the pixels, with a patch of
-           the clip's own flat teal. -->
-      <div class="frame__mask" aria-hidden="true">
-        <video class="fill" data-src="assets/video/preview.mp4"
-               muted loop playsinline preload="none"
-               disablepictureinpicture tabindex="-1"></video>
-      </div>
-
-      <!-- The caption, re-rendered in the selected language. -->
-      <div class="caption" id="caption" role="status" aria-live="polite"
-           aria-label="Video subtitles" data-i18n-aria="captionRegion">
-        <span class="caption__lead" id="captionLead"></span>
-        <span class="caption__part caption__accent" id="captionAccent"></span>
-      </div>
     </div>
   </div>
 </div>
 
 <main class="page">
   <div class="form-head">
-    <p class="lede" data-i18n="formTitle">Թողեք ձեր էլ. փոստը և առաջինը իմացեք բացման մասին։</p>
-    <p class="subtitle" data-i18n="subtitle">Մեկ նամակ բացման օրը՝ ուրիշ ոչինչ։</p>
+    <p class="lede" data-i18n="formTitle">ԱՄՆ-ից, Եվրոպայից և Ասիայից առաքումների նոր իրականություն</p>
+    <p class="subtitle" data-i18n="subtitle">Լրացրու քո էլ. հասցեն և առաջինն իմացիր Movato-ի մեկնարկի մասին։</p>
   </div>
 
   <form class="signup" id="subscribeForm" novalidate>
 
     <div class="field">
-      <label class="field__label" for="email" data-i18n="emailLabel">Էլ. փոստ</label>
+      <label class="field__label" for="email" data-i18n="emailLabel">Էլ. հասցե</label>
       <input class="field__input" type="email" id="email" name="email"
              required autocomplete="email" inputmode="email" spellcheck="false"
              placeholder="you@example.com" data-i18n-placeholder="emailPlaceholder">
@@ -100,7 +83,7 @@
       <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
     </div>
 
-    <button class="signup__btn" type="submit" data-i18n="submit">Բաժանորդագրվել</button>
+    <button class="signup__btn" type="submit" data-i18n="submit">Նախագրանցվել</button>
 
     <p class="signup__msg" id="subscribeMsg" role="status" aria-live="polite"></p>
   </form>
@@ -108,6 +91,7 @@
 
 <script src="assets/js/config.js"></script>
 <script src="assets/js/subtitles.js"></script>
+<script src="assets/js/videos.js"></script>
 <script src="assets/js/main.js"></script>
 <script src="assets/js/subscribe.js"></script>
 </body>

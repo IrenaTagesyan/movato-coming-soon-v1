@@ -1,24 +1,40 @@
 /**
  * Movato — coming soon.
- * Drives the language switcher and the HTML caption overlay.
- * Cue data lives in subtitles.js.
+ * Drives the language switcher and the rotating banner clip.
+ *
+ * The clips carry their own words in their pixels, so nothing is drawn over
+ * them: this file picks one, plays it, and picks another when it ends. Copy
+ * lives in subtitles.js, the clip list in videos.js.
  */
 (function () {
   'use strict';
 
   const STORAGE_KEY = 'movato.subtitle-lang'; // legacy key, cleared on load
-  const SWAP_MS = 170; // fade-out before a caption line swaps text
 
-  const video = document.getElementById('video');
-  const caption = document.getElementById('caption');
-  const lead = document.getElementById('captionLead');
-  const accent = document.getElementById('captionAccent');
   const switcher = document.querySelector('.switcher');
   const fills = document.querySelectorAll('.fill');
 
+  // Two buffers: one plays while the next clip decodes in the other.
+  let active = document.getElementById('videoA');
+  let standby = document.getElementById('videoB');
+
+  // Read from the stylesheet so the duration lives in one place — CSS runs the
+  // fade, and prefers-reduced-motion shortens it there.
+  const FADE_MS = fadeMs();
+
+  /**
+   * Start fetching the next clip once the current one is this far through.
+   * Not on load: a visitor who leaves after a few seconds should cost one clip,
+   * not two. Not at the very end either — ~7s of a 12s clip is enough headroom
+   * to pull ~9MB on a normal connection, and if it is not ready in time the
+   * rotation waits rather than cutting to a blank frame.
+   */
+  const PRELOAD_AT = 0.4;
+
   let lang = initialLanguage();
-  let cues = cuesFor(lang);
-  let accentIndex = -2; // -2 = nothing rendered yet, -1 = between cues
+  let current = null; // the clip on screen
+  let queued = null; // the clip decoding in `standby`
+  let swapping = false;
 
   /* ------------------------------------------------------------ language -- */
 
@@ -56,7 +72,6 @@
 
   function setLanguage(code) {
     lang = code;
-    cues = cuesFor(code);
     document.documentElement.lang = code;
 
     switcher.querySelectorAll('.lang').forEach((btn) => {
@@ -64,8 +79,6 @@
     });
 
     applyStrings();
-    lead.textContent = cues.lead; // fixed line: swapped outright, never animated
-    render(true); // instant re-render: switching language shouldn't re-animate
 
     // Deliberately not persisted — see initialLanguage(). Clearing the key an
     // earlier version wrote stops a stale value lingering in browsers that
@@ -101,78 +114,207 @@
     });
   }
 
-  /* ------------------------------------------------------------- caption -- */
+  /* ---------------------------------------------------------------- clip -- */
 
-  function textAt(track, time) {
-    for (let i = 0; i < track.length; i += 1) {
-      if (time >= track[i].start && time < track[i].end) return i;
-    }
-    return -1;
+  function fadeMs() {
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--clip-fade').trim();
+    const n = parseFloat(raw);
+    if (!n) return 550;
+    return raw.endsWith('ms') ? n : n * 1000;
+  }
+
+  /** Load `src` into the idle buffer so it is decoded before it is needed. */
+  function queue(src) {
+    if (queued === src) return;
+    queued = src;
+    standby.src = src;
+    standby.load();
   }
 
   /**
-   * Animate one caption part. Fading out keeps the old glyphs in place until
-   * they are invisible, so nothing around them reflows mid-fade.
+   * Crossfade to the queued clip.
+   *
+   * The outgoing element is the one that fades — the incoming one is already
+   * opaque beneath it. Fading both would dip the middle of the transition
+   * toward --video-bg, the one teal that does not match the clip.
+   *
+   * If the queued clip has not buffered yet the swap waits for it. A finished
+   * video holds its last frame, so waiting shows a still rather than a gap.
    */
-  function setPart(el, text, instant) {
-    if (el.dataset.text === text) return;
-    el.dataset.text = text;
+  function swap() {
+    if (swapping || !queued) return;
+    swapping = true;
 
-    if (!text) {
-      el.classList.remove('is-visible');
-      return;
-    }
+    const run = () => {
+      const outgoing = active;
+      const incoming = standby;
 
-    const swapIn = () => {
-      el.textContent = text;
-      if (instant) {
-        el.classList.add('is-visible');
-      } else {
-        // Let the browser paint the offset state before transitioning in.
-        requestAnimationFrame(() => {
-          if (el.dataset.text === text) el.classList.add('is-visible');
-        });
-      }
+      incoming.currentTime = 0;
+      const attempt = incoming.play();
+      if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
+
+      // Claim the role now, so the outgoing clip's own `ended` — which lands
+      // mid-dissolve now — cannot start a second swap.
+      active = incoming;
+      standby = outgoing;
+      current = queued;
+      queued = null;
+
+      // Begin the dissolve only once the incoming clip is really rendering.
+      // play() resolves before the first frame is composited, so starting on
+      // it alone spent the first ~100ms dissolving into a still.
+      let started = false;
+      const beginFade = () => {
+        if (started) return;
+        started = true;
+        dissolve(outgoing, incoming);
+      };
+      incoming.addEventListener('playing', beginFade, { once: true });
+      // Autoplay refused, or a decoder that never reports playing: dissolve
+      // anyway rather than leaving the finished clip on screen for ever.
+      window.setTimeout(beginFade, 400);
     };
 
-    window.clearTimeout(el.swapTimer);
-
-    if (instant || !el.classList.contains('is-visible')) {
-      swapIn();
-    } else {
-      el.classList.remove('is-visible');
-      el.swapTimer = window.setTimeout(swapIn, SWAP_MS);
-    }
+    // readyState 3 = HAVE_FUTURE_DATA: enough decoded to paint and keep going.
+    if (standby.readyState >= 3) run();
+    else standby.addEventListener('canplay', run, { once: true });
   }
 
-  function render(force) {
-    const index = textAt(cues.accent, video.currentTime);
-    if (index !== accentIndex || force) {
-      accentIndex = index;
-      setPart(accent, index >= 0 ? cues.accent[index].text : '', Boolean(force));
-    }
+  /** Hand the frame from `outgoing` to `incoming` over --clip-fade. */
+  function dissolve(outgoing, incoming) {
+    incoming.classList.add('is-active');
+    incoming.removeAttribute('aria-hidden');
+    incoming.removeAttribute('tabindex');
+    outgoing.classList.remove('is-active');
+    outgoing.classList.add('is-leaving');
+    outgoing.setAttribute('aria-hidden', 'true');
+    outgoing.tabIndex = -1;
+
+    // Only once the fade has finished: pausing the outgoing element while it
+    // is still visible would freeze it mid-dissolve. Its src is left in place —
+    // queue() overwrites it next rotation, and clearing it here would run the
+    // resource-selection algorithm on a source-less element, which the error
+    // handler would then have to ignore.
+    window.setTimeout(() => {
+      outgoing.classList.remove('is-leaving');
+      outgoing.pause();
+      swapping = false;
+    }, FADE_MS);
+
+    showFill(current);
   }
 
-  function tick() {
-    render(false);
-    requestAnimationFrame(tick);
+  /**
+   * Put the first clip on screen. Only used once — every later change goes
+   * through queue() and swap().
+   */
+  function begin(src) {
+    current = src;
+    active.src = src;
+    active.load();
+    start(active);
+    showFill(src);
+  }
+
+  function bind(el) {
+    // Fallback only. With the handover above, a clip normally passes the frame
+    // on before it ends; this catches one whose timeupdate never lands inside
+    // the last --clip-fade, and the first rotation if the next clip was still
+    // downloading by then.
+    el.addEventListener('ended', () => {
+      if (el === active) swap();
+    });
+
+    el.addEventListener('timeupdate', () => {
+      if (el !== active || swapping || !el.duration) return;
+
+      // Preload the next clip partway through this one.
+      if (!queued) {
+        if (el.currentTime / el.duration >= PRELOAD_AT) queue(pickVideo(current));
+        return;
+      }
+
+      // Hand over while this clip is still running, so the dissolve is between
+      // two moving images. Waiting for `ended` faded out of a frozen last
+      // frame, which reads as a stall however long the fade is — the single
+      // biggest thing that made the swap noticeable.
+      if (el.duration - el.currentTime <= FADE_MS / 1000) swap();
+    });
+
+    // A clip that fails to load would otherwise end the rotation for the visit.
+    el.addEventListener('error', () => {
+      if (el !== active) {
+        queued = null;
+        return;
+      }
+      const next = pickVideo(current);
+      if (next !== current) {
+        current = next;
+        el.src = next;
+        el.load();
+        start(el);
+      }
+    });
+  }
+
+  /**
+   * There are no controls, so if autoplay is refused (low-power mode, strict
+   * settings) start on the first interaction instead of leaving a dead frame.
+   */
+  function start(el) {
+    const attempt = el.play();
+    if (!attempt || typeof attempt.catch !== 'function') return;
+    attempt.catch(() => {
+      const kick = () => {
+        el.play().catch(() => {});
+        document.removeEventListener('pointerdown', kick);
+        document.removeEventListener('keydown', kick);
+      };
+      document.addEventListener('pointerdown', kick);
+      document.addEventListener('keydown', kick);
+    });
   }
 
   /* ---------------------------------------------------------------- fills -- */
 
   /**
-   * The ground and the caption patch only ever show a flat corner of the frame,
-   * so they need exactly one frame each — but they point at the same 6MB file
-   * as the visible clip. Loading all three at once made them race for
-   * bandwidth: measured cold, the file came down twice and the banner did not
-   * move until ~1s after navigation.
+   * The fills only ever show a flat corner of the frame, so they need exactly
+   * one frame each — but they point at the same multi-megabyte file as the
+   * visible clip. Loading all three at once made them race for bandwidth:
+   * measured cold, the file came down twice and the banner did not move until
+   * ~1s after navigation.
    *
    * So they start with no src at all and are given one only once the visible
-   * video is playing. Until then the mask and the ground fall back to
-   * --video-bg, which is the right colour to within a rendering path — and the
-   * visible clip is showing its poster over that same span anyway.
+   * video is playing. Until then they fall back to --video-bg, which is the
+   * right colour to within a rendering path.
    */
   let fillsStarted = false;
+  let fillSrc = null;
+
+  /**
+   * Give the fills a clip to paint the header band from — once per visit.
+   *
+   * They are deliberately NOT re-pointed on each rotation. A <video> shows
+   * through to its parent's background until a new source decodes, so
+   * reloading them mid-rotation flashed the band to --video-bg — the one teal
+   * that does not match a decoded clip, and the entire reason these elements
+   * exist. A flash every twelve seconds is far more noticeable than any
+   * difference between the clips, which are four renders of the same piece at
+   * the same brand teal.
+   *
+   * If a future clip is graded differently its band will not match, and the
+   * fix is to crossfade a second pair of fills, not to reload these.
+   */
+  function showFill(src) {
+    if (fillSrc) return;
+    fillSrc = src;
+    if (!fillsStarted) return;
+    fills.forEach((fill) => {
+      fill.src = src;
+      fill.load();
+    });
+  }
 
   function startFills() {
     if (fillsStarted) return;
@@ -181,15 +323,15 @@
     fills.forEach((fill) => {
       const park = () => fill.pause();
       fill.addEventListener('loadeddata', park, { once: true });
-      if (!fill.src && fill.dataset.src) {
+      if (!fill.src && fillSrc) {
         fill.preload = 'auto';
-        fill.src = fill.dataset.src;
+        fill.src = fillSrc;
       }
       if (fill.readyState >= 2) park();
     });
   }
 
-  video.addEventListener('playing', startFills, { once: true });
+  active.addEventListener('playing', startFills, { once: true });
   // Autoplay can be refused, and a stalled network should not strand the
   // background colour on its CSS fallback for ever.
   window.setTimeout(startFills, 2500);
@@ -198,23 +340,11 @@
 
   buildSwitcher();
   setLanguage(lang);
-  requestAnimationFrame(tick);
 
-  // There are no controls, so if autoplay is refused (low-power mode, strict
-  // settings) start on the first interaction instead of leaving a dead frame.
-  function start() {
-    const attempt = video.play();
-    if (attempt && typeof attempt.catch === 'function') {
-      attempt.catch(() => {
-        const kick = () => {
-          video.play().catch(() => {});
-          document.removeEventListener('pointerdown', kick);
-          document.removeEventListener('keydown', kick);
-        };
-        document.addEventListener('pointerdown', kick);
-        document.addEventListener('keydown', kick);
-      });
-    }
-  }
-  start();
+  bind(document.getElementById('videoA'));
+  bind(document.getElementById('videoB'));
+
+  // Nothing is preloaded in the markup, so a visitor who leaves early fetches
+  // exactly one clip, and which one they open on is genuinely random.
+  begin(pickVideo(null));
 })();
