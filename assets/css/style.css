@@ -75,19 +75,33 @@
      still fits one screen. Banner height follows the window's *width* while
      the form's does not, so a wide-but-short window is where it overflows:
      0.53 came to 857px against 845px of viewport on a 2000px window at 125%
-     browser zoom, which is the scrollbar. 0.53 fits because the form was
-     tightened to pay for it — the gaps and the field and button padding in the
-     max-height: 900px block below — leaving ~22px spare there. Going further
-     means taking height from the copy or the fields themselves.
+     browser zoom, which is the scrollbar. That is no longer how the fit is
+     guaranteed: .hero is `flex: 0 1 auto` against a body with a definite
+     height, so the banner gives up whatever the form needs and a scrollbar is
+     structurally impossible. This value is therefore a *ceiling* — what the
+     banner takes on a window tall enough to grant it — not a fixed share.
 
      One value, no max-height steps. Sizing the banner off viewport height
      makes the page render at different sizes depending on browser zoom, since
      Chrome keeps zoom per origin — the same page then looks different on
      localhost and on the deployed URL.
 
-     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.53 = 4.77. */
+     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.66 = 5.94. */
+  /* How much of the banner's width the clip spans. Below 100% it is drawn
+     smaller and centred, with the hero's teal either side — and that teal is
+     painted from the clip itself (.fill), so there is no visible edge; the
+     animation simply sits smaller inside the same band.
+
+     --crop-top is a share of the *frame's* height, so it scales with the clip
+     and keeps landing on the same part of it. The window is fixed by
+     --crop-keep and does not scale, so a smaller clip shows a taller slice of
+     itself: 27%-104% of the frame at 86%, against 27%-93% at full width —
+     past the frame's own bottom, where .hero__ground's fill takes over. The
+     40%-71.9% content band and the 58.5%-77% caption band both stay inside. */
+  --clip-width: 86%;
+
   --crop-top: 0.27;
-  --crop-keep: 0.53;
+  --crop-keep: 0.66;
 
   --pad: clamp(1.25rem, 5vw, 2.5rem);
   /* Content column. Widened from 1040px to make room for the larger title:
@@ -218,8 +232,10 @@ body {
   grid-column: 3;
   justify-self: end;
   display: flex;
-  gap: 0.2rem;
-  padding: 0.2rem;
+  /* Gap and padding come down with the pills, so the group keeps its shape
+     rather than turning into small labels in an unchanged frame. */
+  gap: 0.15rem;
+  padding: 0.15rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.1);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
@@ -229,12 +245,12 @@ body {
   appearance: none;
   border: 0;
   margin: 0;
-  padding: 0.34rem 0.7rem;
+  padding: 0.28rem 0.58rem;
   border-radius: 999px;
   background: transparent;
   color: rgba(255, 255, 255, 0.66);
   font: inherit;
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.07em;
   cursor: pointer;
@@ -266,7 +282,7 @@ body {
   /* The preferred height. flex may shrink it below this on a short window; it
      never grows past it. overflow: hidden then crops the frame rather than
      letting the page scroll. */
-  aspect-ratio: 16 / 4.77; /* 9 × --crop-keep */
+  aspect-ratio: 16 / 5.94; /* 9 × --crop-keep */
   flex: 0 1 auto;
   min-height: 0;
   overflow: hidden;
@@ -282,14 +298,40 @@ body {
    element's own — which is the one the 37% is measured in. */
 .frame {
   position: absolute;
-  left: 0;
+  /* Centred rather than pinned left, so narrowing --clip-width takes the same
+     amount off each side instead of sliding the clip. */
+  left: calc((100% - var(--clip-width)) / 2);
   top: 0;
-  width: 100%;
+  width: var(--clip-width);
   aspect-ratio: 16 / 9;
   transform: translateY(calc(var(--crop-top) * -100%));
-  /* Enables the cqh units the caption is sized in. */
+  /* Enables the cqh units the caption is sized in. The caption therefore
+     scales with the clip, which is what keeps it sitting over the burned-in
+     text when --clip-width changes. */
   container-type: size;
   container-name: frame;
+
+  /* Soft edges on three sides.
+
+     The clip no longer fills the banner: it stops short at the sides
+     (--clip-width) and, now that --crop-keep shows more than the frame holds,
+     at the bottom too. .hero__ground's fill covers all of that with the same
+     clip-sampled teal — but scaling a video pulls a bilinear ramp out of its
+     outermost pixel row and column, and that ramp reads as a faint line down
+     the join. Fading the last 2.5% dissolves it instead of butting two
+     surfaces together.
+
+     Two layers intersected rather than one: a single gradient cannot fade two
+     axes. The top is left hard, since the bar sits above it and there is no
+     join there. Everything being faded is flat teal in every frame. */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0, #000 2.5%, #000 97.5%, transparent 100%),
+    linear-gradient(to bottom, #000 0, #000 96%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0, #000 2.5%, #000 97.5%, transparent 100%),
+    linear-gradient(to bottom, #000 0, #000 96%, transparent 100%);
+  mask-composite: intersect;
 }
 
 .frame__video {
@@ -407,7 +449,7 @@ body {
   /* In em for the same reason as .lede's, and sized the same way: 24em-25em is
      the only range that gives two lines in all three languages. */
   max-width: 25em;
-  font-size: clamp(0.95rem, 1.18vw, 1.12rem);
+  font-size: clamp(0.78rem, 0.96vw, 0.92rem);
   font-weight: 400;
   line-height: 1.45;
   color: var(--ink-soft);
@@ -436,7 +478,7 @@ body {
      Geologica carries no Armenian and those glyphs fall through to Noto Sans
      Armenian, a much wider face. */
   max-width: 22em;
-  font-size: clamp(1.23rem, 2.46vw, 1.8rem);
+  font-size: clamp(1rem, 2vw, 1.47rem);
   font-weight: 600;
   line-height: 1.35;
   color: var(--ink);
@@ -467,7 +509,7 @@ body {
   align-items: baseline;
   gap: 0.4rem;
   padding-left: 0.15rem;
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -486,7 +528,7 @@ body {
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: 0.87rem;
   transition: border-color 0.18s var(--ease), background-color 0.18s var(--ease);
 }
 
@@ -523,7 +565,7 @@ body {
   background: linear-gradient(180deg, #2ec7d6, #019eae);
   color: #ffffff;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -584,7 +626,7 @@ body {
    has to give up width or the title has nowhere to go. */
 @media (max-width: 520px) {
   .switcher { gap: 0.1rem; padding: 0.15rem; }
-  .lang { padding: 0.3rem 0.5rem; font-size: 0.6rem; letter-spacing: 0.04em; }
+  .lang { padding: 0.25rem 0.42rem; font-size: 0.53rem; letter-spacing: 0.04em; }
   .hero__title { letter-spacing: 0.14em; text-indent: 0.14em; }
 }
 
@@ -600,14 +642,14 @@ body {
   .page { gap: 0.7rem; } /* still the widest gap on the page, just tighter */
   .signup { gap: 0.45rem; }
   .field { gap: 0.2rem; }
-  .field__label { font-size: 0.64rem; letter-spacing: 0.08em; }
+  .field__label { font-size: 0.58rem; letter-spacing: 0.08em; }
   /* Vertical padding only — the fields keep their horizontal padding, so they
      read as the same control, just less tall. */
-  .field__input { padding: 0.58rem 0.85rem; font-size: 0.9rem; }
+  .field__input { padding: 0.58rem 0.85rem; font-size: 0.82rem; }
   .signup__btn { margin-top: 0.15rem; padding: 0.68rem 1.2rem; }
   .signup__msg { font-size: 0.8rem; }
-  .lede { font-size: clamp(1.12rem, 2.13vw, 1.4rem); line-height: 1.3; }
-  .subtitle { font-size: clamp(0.9rem, 1.1vw, 1.05rem); }
+  .lede { font-size: clamp(0.91rem, 1.75vw, 1.15rem); line-height: 1.3; }
+  .subtitle { font-size: clamp(0.74rem, 0.9vw, 0.86rem); }
 }
 
 /* The banner is deliberately never width-capped: it reads as the whole point of
