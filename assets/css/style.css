@@ -9,8 +9,9 @@
    Everything is sized to fit one viewport without scrolling, in all three
    languages; see the vertical budget note above .page.
 
-   Each clip carries its own words burned into its pixels, so the page draws
-   nothing over them; it only rotates which clip is playing.
+   The clip's Armenian caption is burned into its pixels, so a patch of the
+   clip's own teal covers it and the caption is re-rendered as HTML in the
+   selected language. See README.
    ========================================================================== */
 
 :root {
@@ -31,60 +32,53 @@
   --line: rgba(242, 248, 249, 0.18);
   --surface: rgba(242, 248, 249, 0.06);
 
+  /* Caption band, as a share of the video height. The burned-in caption spans
+     61.8%–71.8%; the patch runs 58.5%–77%, so its solid core (61%–74%) clears
+     the text while the feathered edges stay clear of the wordmark, which ends
+     at 57.3%. */
+  --band-top: 58.5%;
+  --band-height: 18.5%;
+
+  /* Caption typography, matched to the original render (≈45px at 1080p). The
+     floor keeps it readable on phones, where a strictly proportional caption
+     would land under 10px. */
+  --caption-top: 61.4%;
+  --caption-size: max(4.2cqh, 12px);
+
   /* Banner crop: which slice of the 16:9 frame the banner shows. Its height is
      width × 9 × --crop-keep / 16, so widening the slice is what makes the
      banner taller — the clip is not scaled, more of it is revealed.
 
-     The window is 31.75%–84.75%. It was 37%–79.5%, sized around a render whose
-     content sat between 40.0% and 71.9% of frame height; it was widened by the
-     same amount top and bottom, keeping the centre at 58.25%, so anything that
-     fitted before still fits with margin to spare. That matters now that four
-     different renders share the window and their content bounds are not all
-     measured — growing symmetrically cannot crop one of them.
+     Measured off the render, sampled across the whole clip: every non-teal
+     pixel in every frame falls between 40.0% and 71.9% of the frame height,
+     and the burned-in caption band spans 58.5%–77%. The window is 27%–80%, so
+     both sit inside it and everything outside them is flat teal carrying
+     nothing.
 
-     Everything outside the content band is flat teal carrying nothing, so the
-     extra room reads as air around the wordmark rather than as empty space.
+     The window deliberately sits well above the content rather than centred on
+     it, which seats the clip lower in the banner: 13 points of teal above the
+     wordmark against 8.1 below the caption. Centred, it left 12.85 points of
+     dead teal under the caption and only 8.25 above, and that bottom band read
+     as a gap between the clip and the form rather than as margin.
 
-     The window sits well above the content rather than centred on it, which
-     seats the clip lower in the banner: 13 points of teal above the wordmark
-     against roughly 8 below. Centred, it left about 13 points of dead teal
-     underneath and only 8 above, and that bottom band read as a gap between
-     the clip and the form rather than as margin.
+     8.1 points below the caption is close to the floor — the window bottom is
+     at 80% against a caption band ending at 77%. Much further and the caption
+     starts losing its lower margin, and on a narrow screen it needs more of
+     the frame than it does here, not less.
 
-     The 40.0%-71.9% content band was measured on the single render this page
-     used to ship, which has since been replaced by the four rotating clips.
-     They are renders of the same piece, so the band still holds — but it is
-     inherited, not measured on them. Re-check it if a clip is re-exported.
+     It was 37%–79.5%, then widened symmetrically about that window's centre of
+     58.25% so nothing that fitted before could be cropped — including the
+     caption on a narrow screen, where it stops scaling with the frame and sits
+     on its 12px floor. The whole window then moved up 10 points.
 
-     Sized so the banner leads the page's two blocks while the whole page still
-     fits one screen without scrolling. 0.53 overflowed a 1600x845 viewport —
-     a 2000px window at 125% browser zoom. Trimming .page's vertical padding
-     bought ~16px back, which is what 0.52 spends: it leaves ~13px spare there
-     and the page still fits on one screen. 0.54 scrolls again, so this is the
-     ceiling unless more height comes out of the form.
+     Sized so the banner is the taller of the page's two blocks: 1.30x the
+     sign-up block at 1440x900, 1.53x at 1920x1080. It was the smaller one at
+     0.89x and 1.00x. Banner height follows width while the form does not, so
+     past roughly 0.56 the form stops fitting a laptop screen at all.
 
-     One value, no max-height steps. Sizing the banner off viewport height made
-     the page render differently depending on zoom, because Chrome keeps zoom
-     per origin: a zoomed-out tab reported a taller viewport than one at 100%
-     and got a different banner. Rendering the same everywhere is worth more
-     than reclaiming the last few points of height on short windows.
-
-     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.52 = 4.68. */
-  /* How much of the banner's width the clip spans. Below 100% the clip is
-     drawn smaller and centred, with the hero's teal either side — and since
-     that teal is painted from the clip itself (.fill) there is no visible
-     edge, the animation simply sits smaller inside a wider band.
-
-     The crop still works: --crop-top is a share of the *frame's* height, so it
-     scales with the clip and keeps landing on the same part of it. The window
-     is fixed by --crop-keep and does not scale, so a smaller clip shows a
-     taller slice of itself — at 88% the window covers 27%-83.8% of the frame
-     against 27%-75% at full width. The 40%-71.9% content band stays inside
-     either way. */
-  --clip-width: 88%;
-
+     --crop-keep is baked into .showcase's aspect-ratio as 9 × 0.53 = 4.77. */
   --crop-top: 0.27;
-  --crop-keep: 0.52;
+  --crop-keep: 0.53;
 
   --pad: clamp(1.25rem, 5vw, 2.5rem);
   /* Content column. Widened from 1040px to make room for the larger title:
@@ -101,11 +95,6 @@
   --font-ui: 'Geologica', 'Noto Sans Armenian', -apple-system, BlinkMacSystemFont,
     'Segoe UI', system-ui, sans-serif;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-
-  /* Crossfade between clips. It runs over the tail of the outgoing clip
-     rather than after it, so both are still moving throughout — long enough
-     to read as a dissolve, short enough not to eat the closing beat. */
-  --clip-fade: 900ms;
 }
 
 *,
@@ -245,7 +234,7 @@ body {
   position: relative;
   z-index: 1;
   width: 100%;
-  aspect-ratio: 16 / 4.68; /* 9 × --crop-keep */
+  aspect-ratio: 16 / 4.77; /* 9 × --crop-keep */
   overflow: hidden;
 }
 
@@ -259,64 +248,80 @@ body {
    element's own — which is the one the 37% is measured in. */
 .frame {
   position: absolute;
-  /* Centred rather than pinned left, so narrowing --clip-width takes the same
-     amount off each side instead of sliding the clip. */
-  left: calc((100% - var(--clip-width)) / 2);
+  left: 0;
   top: 0;
-  width: var(--clip-width);
+  width: 100%;
   aspect-ratio: 16 / 9;
   transform: translateY(calc(var(--crop-top) * -100%));
-
-  /* Soft left and right edges.
-
-     Below 100% the clip stops short of the banner and .hero__ground's fill
-     takes over either side. Both are the same teal from the same file, but
-     scaling a video pulls a bilinear ramp out of its outermost pixel column,
-     and that ramp reads as a faint vertical line down the join — the same
-     effect the fills avoid by sampling well clear of the frame edges.
-
-     Fading the last 2.5% each side dissolves the join instead of butting two
-     surfaces together. It costs nothing: that band is flat teal in every
-     frame, so there is no content in what is being faded. */
-  -webkit-mask-image: linear-gradient(to right,
-    transparent 0, #000 2.5%, #000 97.5%, transparent 100%);
-  mask-image: linear-gradient(to right,
-    transparent 0, #000 2.5%, #000 97.5%, transparent 100%);
+  /* Enables the cqh units the caption is sized in. */
+  container-type: size;
+  container-name: frame;
 }
 
-/* Two of these are stacked, and the banner crossfades between them: while one
-   plays, the next clip is decoding in the other. Both carry the teal as their
-   own background, so the pair never shows through to anything else mid-fade.
-
-   Only the outgoing element is faded; the incoming one is already opaque
-   underneath. Fading both at once would dip the middle of the transition
-   toward --video-bg, which is the one teal that does not match the clip. */
 .frame__video {
-  position: absolute;
-  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   /* Source is exactly 16:9, so `fill` maps percentages 1:1 with no distortion. */
   object-fit: fill;
   background: var(--video-bg);
-  opacity: 0;
 }
 
-.frame__video.is-active {
+.frame__mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--band-top);
+  height: var(--band-height);
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--video-bg);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 13.5%, #000 83.8%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 13.5%, #000 83.8%, transparent 100%);
+}
+
+/* --------------------------------------------------------------- caption -- */
+
+.caption {
+  position: absolute;
+  top: var(--caption-top);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 92%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12em;
+  text-align: center;
+  font-size: var(--caption-size);
+  line-height: 1.18;
+  color: #ffffff;
+  pointer-events: none;
+}
+
+/* The lead line is fixed copy: it is painted once and never animates, so it
+   cannot flicker at a cue boundary or at the loop point. */
+.caption__lead {
+  display: block;
+  max-width: 100%;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+/* The accent line is the only animated part. */
+.caption__part {
+  display: block;
+  max-width: 100%;
+  font-weight: 400;
+  text-wrap: balance;
+  opacity: 0;
+  transform: translateY(0.35em);
+  transition: opacity 0.32s var(--ease), transform 0.32s var(--ease);
+}
+
+.caption__part.is-visible {
   opacity: 1;
-  /* z-index, not source order: the two elements swap roles every rotation. */
-  z-index: 1;
-}
-
-/* `linear`, not --ease. Only the outgoing element animates, so what the eye
-   sees is a * out + (1 - a) * in — a constant rate of alpha is a constant rate
-   of dissolve. An ease-out curve dumps most of the change in the first third
-   and then crawls, which reads as a cut followed by a lingering ghost. */
-.frame__video.is-leaving {
-  opacity: 0;
-  z-index: 2;
-  transition: opacity var(--clip-fade) linear;
+  transform: translateY(0);
 }
 
 /* ------------------------------------------------------------------ page -- */
@@ -345,11 +350,8 @@ body {
   width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
-  /* Trimmed to buy the banner height. This padding is the least visible space
-     on the page — it reads as breathing room, not as structure — so it gives
-     way before the copy or the fields do. Worth ~16px on a 845px viewport. */
-  padding: clamp(0.9rem, 2.4vh, 1.5rem) var(--pad) clamp(0.9rem, 2.2vh, 1.4rem);
-  padding-bottom: max(clamp(0.9rem, 2.2vh, 1.4rem), env(safe-area-inset-bottom));
+  padding: clamp(1.25rem, 3.5vh, 2.25rem) var(--pad) clamp(1.25rem, 3vh, 2rem);
+  padding-bottom: max(clamp(1.25rem, 3vh, 2rem), env(safe-area-inset-bottom));
 }
 
 /* Title and subtitle travel together, closer to each other than either is to
@@ -415,6 +417,7 @@ body {
   gap: 0.85rem;
 }
 
+
 .field {
   display: flex;
   flex-direction: column;
@@ -433,6 +436,7 @@ body {
   text-transform: uppercase;
   color: var(--ink-faint);
 }
+
 
 .field__input {
   width: 100%;
@@ -575,11 +579,14 @@ body {
    An earlier revision capped .showcase to 820px on (max-height: 700px); it was
    removed on purpose, so re-adding it undoes an explicit design decision. */
 
+/* Fallback for engines without container query units: size the caption from the
+   viewport, which tracks the frame closely at every common screen shape. */
+@supports not (font-size: 1cqh) {
+  .caption { font-size: clamp(12px, 2vw, 1.35rem); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  /* The crossfade is kept: it is an opacity dissolve with nothing moving, and
-     cutting hard between two animations is the more jarring of the two. It is
-     shortened so it reads as a transition without lingering. */
-  :root { --clip-fade: 200ms; }
+  .caption__part { transition-duration: 0.01ms; }
   .signup__btn:hover:not(:disabled) { transform: none; }
 }
 

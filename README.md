@@ -145,40 +145,36 @@ silently does nothing.
 
 ### The crop
 
-The banner shows a horizontal slice of the 16:9 frame, and its height is
-`width × 9 × --crop-keep / 16`. Widening the slice is therefore what makes the
-banner taller — the clip is never scaled, more of it is revealed.
+Measured off the render rather than eyeballed: sampling every frame of the clip
+and looking for non-teal pixels, **all content falls between 40.0 % and 71.9 %
+of the frame height**, and the top edge does not move for the whole 9.53 s. The
+bottom edge moves only with the caption line.
 
-The window is **27 %–80 %**. It started at 37 %–79.5 %, sized around a single
-render whose content sat between 40.0 % and 71.9 % of the frame height. It was
-first widened by the same amount top and bottom, keeping the centre at 58.25 %,
-so anything that fitted before still fits — growing it symmetrically is the
-point, because four different renders now share this window and their content
-bounds have not all been measured, so a symmetric expansion cannot crop one of
-them. The whole window then moved up 10 points, which seats the clip lower in
-the banner: 13 points of teal above the wordmark against about 8 below.
-Centred, the leftover teal pooled underneath and read as a gap between the clip
-and the form rather than as margin. Everything outside the content band is flat
-teal carrying nothing.
+So the window is **27 %–80 %**, with the content band (40.0 %–71.9 %) and
+the burned-in caption band (58.5 %–77 %) both well inside it. Everything outside
+them is flat teal carrying nothing.
 
-The slice is also sized so the banner clearly leads the page's two blocks at
-common window shapes — 1.30× the sign-up block at 1440×900, 1.53× at 1920×1080,
-1.36× at 1280×800. Past roughly `--crop-keep: 0.56` the form stops fitting a
-laptop screen at all, so this is close to the ceiling.
-Because banner height follows *width* while the form does not, a wide-but-short
-window is where this bites: there the form can run past the fold and the page
-scrolls. That is deliberate (see "Never cap the banner width" in the history) —
-a full-size banner everywhere was chosen over fitting one screen on short
-laptops.
+It was 37 %–79.5 %. The widening was symmetric about that window's centre of
+58.25 %, so nothing that fitted before can be cropped — including the caption on
+a narrow screen, where it stops scaling with the frame and sits on its 12 px
+floor.
+
+The slice is sized so the banner is the taller of the page's two blocks —
+1.30× the sign-up block at 1440×900, 1.53× at 1920×1080. It was the *smaller*
+one before, at 0.89× and 1.00×. Because banner height follows *width* while the
+form does not, a wide-but-short window is where this bites: past roughly
+`--crop-keep: 0.56` the form stops fitting a laptop screen at all.
 
 The crop is done by the banner, not by the video element, and the pull-up is a
 `translateY` rather than `top`: a percentage in `top` resolves against the
 *container's* height, while a percentage in `translateY` resolves against the
-element's own — which is the one `--crop-top` is measured in.
+element's own — which is the one the 37 % is measured in. Both details exist
+for the same reason: the mask and the caption are positioned in percentages *of
+the frame*, so anything that resized or rebased the frame would invalidate every
+measured number in the table at the end of this file.
 
-There are no player controls: a clip autoplays muted and, when it ends, another
-is chosen at random and dissolved in. If autoplay is refused, it starts on the
-first tap or keypress.
+There are no player controls: the clip autoplays muted and loops. If autoplay is
+refused, it starts on the first tap or keypress.
 
 ## Sign-up capture
 

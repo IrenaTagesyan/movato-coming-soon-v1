@@ -12,13 +12,15 @@
 <meta property="og:title" content="Movato — Coming soon">
 <meta property="og:description" content="We’re bringing you new brands and a new culture.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="assets/video/poster.jpg">
 
+<link rel="preload" as="video" href="assets/video/preview.mp4?v=df401a61">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Geologica carries no Armenian subset, so Armenian glyphs fall through to
      Noto Sans Armenian. unicode-range makes that per-glyph and automatic. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geologica:wght@400;500;600;700&family=Noto+Sans+Armenian:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="assets/css/style.css?v=d59f598d">
+<link rel="stylesheet" href="assets/css/style.css?v=6fbe3a14">
 </head>
 <body>
 
@@ -28,7 +30,8 @@
 <div class="hero">
 
   <div class="hero__ground" aria-hidden="true">
-    <video class="fill" muted loop playsinline preload="none"
+    <video class="fill" data-src="assets/video/preview.mp4?v=df401a61"
+           muted loop playsinline preload="none"
            disablepictureinpicture tabindex="-1"></video>
   </div>
 
@@ -45,19 +48,33 @@
        that window is flat teal carrying nothing. -->
   <div class="showcase">
     <div class="frame" id="frame">
-      <!-- Two elements, not one. The next clip is loaded into whichever is
-           idle while the other plays, so the swap is a crossfade between two
-           decoded videos rather than a blank frame waiting on a download.
-           main.js picks which clip each one gets; neither has a src here, so
-           only the chosen clip is ever fetched. No `loop` — the clip has to
-           end for `ended` to fire, and that is what rotates the banner. -->
-      <video class="frame__video is-active" id="videoA"
-             muted autoplay playsinline preload="auto"
-             disablepictureinpicture aria-label="Movato preview"></video>
-      <video class="frame__video" id="videoB"
-             muted playsinline preload="auto"
-             disablepictureinpicture aria-hidden="true" tabindex="-1"></video>
+      <video
+        class="frame__video"
+        id="video"
+        src="assets/video/preview.mp4?v=df401a61"
+        poster="assets/video/poster.jpg"
+        muted
+        loop
+        autoplay
+        playsinline
+        preload="auto"
+        disablepictureinpicture
+        aria-label="Movato preview"></video>
 
+      <!-- Hides the Armenian caption burned into the pixels, with a patch of
+           the clip's own flat teal. -->
+      <div class="frame__mask" aria-hidden="true">
+        <video class="fill" data-src="assets/video/preview.mp4?v=df401a61"
+               muted loop playsinline preload="none"
+               disablepictureinpicture tabindex="-1"></video>
+      </div>
+
+      <!-- The caption, re-rendered in the selected language. -->
+      <div class="caption" id="caption" role="status" aria-live="polite"
+           aria-label="Video subtitles" data-i18n-aria="captionRegion">
+        <span class="caption__lead" id="captionLead"></span>
+        <span class="caption__part caption__accent" id="captionAccent"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -90,9 +107,8 @@
 </main>
 
 <script src="assets/js/config.js?v=daaf820b"></script>
-<script src="assets/js/subtitles.js?v=b5826ca3"></script>
-<script src="assets/js/videos.js?v=feb8e8f7"></script>
-<script src="assets/js/main.js?v=317309e8"></script>
+<script src="assets/js/subtitles.js?v=5185e601"></script>
+<script src="assets/js/main.js?v=18e4164c"></script>
 <script src="assets/js/subscribe.js?v=8b2efc38"></script>
 </body>
 </html>
