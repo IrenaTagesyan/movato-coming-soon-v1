@@ -505,38 +505,6 @@ body {
   .hero__title { letter-spacing: 0.14em; text-indent: 0.14em; }
 }
 
-/* The banner shrinks on short viewports.
-
-   Its height follows the window's *width* (width x 9 x --crop-keep / 16) while
-   the form's does not, so a window that is wide but short gives the banner its
-   most and the form its least — and the page scrolls. The full-size crop is
-   sized for a tall window; these trim it so the form still fits.
-
-   Each step keeps the content band (40%-71.9% of the frame) inside the window,
-   which is what stops the trimming from cropping the clip: the window narrows
-   *around* the content rather than off the bottom. aspect-ratio has to move
-   with --crop-keep — it is 9 x --crop-keep, and nothing derives it at runtime.
-
-   Note this is about the CSS viewport, not the physical screen: at 125% browser
-   zoom a 900px-tall window reports 720px and lands in the first step. That is
-   correct — everything is proportionally larger, so there genuinely is less
-   room. */
-@media (max-height: 820px) {
-  :root {
-    --crop-top: 0.335;
-    --crop-keep: 0.44;
-  }
-  .showcase { aspect-ratio: 16 / 3.96; } /* 9 x 0.44 */
-}
-
-@media (max-height: 700px) {
-  :root {
-    --crop-top: 0.375;
-    --crop-keep: 0.35;
-  }
-  .showcase { aspect-ratio: 16 / 3.15; } /* 9 x 0.35 */
-}
-
 /* Short viewports. The threshold is 900px, not a phone-sized number: a 1366x768
    or 1280x800 laptop is exactly where this bites, because the banner scales with
    *width* while the form does not — a wide-but-short window gives the banner the
